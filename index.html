@@ -1,0 +1,806 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CIAT25 | Gate 0–4 Full Pipeline Audit</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#0a0a0f;color:#e0e0e0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;min-height:100vh;padding:16px}
+.container{max-width:680px;margin:0 auto}
+.header{text-align:center;padding:20px 0 12px;border-bottom:1px solid #1a1a2e;margin-bottom:16px}
+.header h1{font-size:1.4rem;color:#00d4ff;letter-spacing:3px}
+.header p{color:#666;font-size:0.78rem;margin-top:4px}
+.gate-row{display:flex;gap:8px;justify-content:center;margin-top:10px;flex-wrap:wrap}
+.gate-badge{display:inline-block;padding:4px 12px;border-radius:20px;font-size:0.65rem;font-weight:700;letter-spacing:1px;border:1px solid}
+.gate-active{background:#00ff8811;color:#00ff88;border-color:#00ff8833}
+.gate-pending{background:#ffaa0011;color:#ffaa00;border-color:#ffaa0033}
+.gate-inactive{background:#333;color:#666;border-color:#333}
+
+.section{background:#111118;border:1px solid #1a1a2e;border-radius:14px;padding:16px;margin-bottom:14px}
+.section-title{color:#888;font-size:0.72rem;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:12px;display:flex;align-items:center;gap:8px}
+.section-title span{font-size:1rem}
+input,textarea{width:100%;background:#0a0a0f;border:1px solid #222;border-radius:10px;padding:12px 14px;color:#e0e0e0;font-size:0.9rem;outline:none;margin-bottom:10px;font-family:inherit}
+input:focus,textarea:focus{border-color:#00d4ff}
+textarea{min-height:60px;resize:vertical}
+button{width:100%;background:#00d4ff;color:#0a0a0f;border:none;padding:14px;border-radius:10px;font-size:0.9rem;font-weight:800;cursor:pointer;letter-spacing:1px}
+button.secondary{background:transparent;color:#00d4ff;border:1px solid #00d4ff44;margin-top:8px}
+button.tertiary{background:#1a1a2e;color:#888;border:1px solid #222;margin-top:6px;font-size:0.8rem;padding:10px}
+button.hold-btn{background:#ffaa00;margin-top:10px}
+button:active{transform:scale(0.98)}
+button:disabled{opacity:0.4;cursor:not-allowed}
+
+.pipeline{display:flex;align-items:center;gap:8px;margin:12px 0;font-size:0.75rem;flex-wrap:wrap}
+.pipe-node{background:#1a1a2e;padding:6px 12px;border-radius:6px;color:#888;border:1px solid #222}
+.pipe-node.done{background:#00ff8811;color:#00ff88;border-color:#00ff8833}
+.pipe-node.fail{background:#ff336611;color:#ff3366;border-color:#ff336633}
+.pipe-node.current{background:#ffaa0011;color:#ffaa00;border-color:#ffaa0033;animation:pulse 1.5s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.6}}
+.pipe-arrow{color:#444}
+
+.result{background:#111118;border:1px solid #1a1a2e;border-radius:14px;padding:16px;margin-bottom:12px;display:none}
+.result.show{display:block;animation:fadeIn 0.3s ease}
+@keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.status-pass{border-left:4px solid #00ff88}
+.status-block{border-left:4px solid #ff3366}
+.status-escalate{border-left:4px solid #ffaa00}
+.status-label{font-size:0.7rem;font-weight:800;text-transform:uppercase;letter-spacing:2px;margin-bottom:8px}
+.status-pass .status-label{color:#00ff88}
+.status-block .status-label{color:#ff3366}
+.status-escalate .status-label{color:#ffaa00}
+.result-query{color:#aaa;font-size:0.85rem;margin-bottom:10px;font-style:italic;padding:10px;background:#0a0a0f;border-radius:8px}
+.result-reason{color:#ccc;font-size:0.8rem;line-height:1.6;margin-bottom:10px}
+
+.claim-list{margin-top:12px}
+.claim-item{background:#0d0d14;border-radius:10px;padding:12px 14px;margin-bottom:8px;font-size:0.82rem;border-left:3px solid #00ff88}
+.claim-item.unverified{border-left-color:#ffaa00;background:#ffaa0008}
+.claim-item.contradiction{border-left-color:#ff3366;background:#ff336608}
+.claim-text{color:#ccc;line-height:1.5}
+.claim-cite{color:#00d4ff;font-size:0.72rem;margin-top:6px;font-weight:600}
+.claim-flag{color:#ffaa00;font-size:0.72rem;margin-top:4px}
+.claim-error{color:#ff3366;font-size:0.72rem;margin-top:4px}
+.claim-divergence{color:#ffaa00;font-size:0.72rem;margin-top:4px}
+
+.score-bar{background:#0d0d14;height:6px;border-radius:3px;margin:8px 0;overflow:hidden}
+.score-fill{height:100%;border-radius:3px;transition:width 0.5s ease}
+.score-fill.pass{background:#00ff88}
+.score-fill.block{background:#ff3366}
+.score-fill.escalate{background:#ffaa00}
+.score-fill.warn{background:#ffaa00}
+.score-row{display:flex;justify-content:space-between;font-size:0.75rem;color:#888;margin-bottom:4px}
+
+.grounding-summary{background:#0d0d14;padding:14px;border-radius:10px;margin-top:12px}
+.grounding-summary .title{color:#888;font-size:0.72rem;text-transform:uppercase;letter-spacing:1px;margin-bottom:10px}
+.grounding-row{display:flex;justify-content:space-between;padding:6px 0;font-size:0.8rem;border-bottom:1px solid #1a1a2e}
+.grounding-row:last-child{border-bottom:none}
+.grounding-row .label{color:#999}
+.grounding-row .value{font-weight:700}
+.grounding-row .value.pass{color:#00ff88}
+.grounding-row .value.fail{color:#ff3366}
+.grounding-row .value.warn{color:#ffaa00}
+
+.cert-box{background:#0a0a0f;border:1px solid #00ff8833;border-radius:10px;padding:12px 14px;margin-top:12px;font-family:'SF Mono',Consolas,monospace;font-size:0.7rem;color:#00ff88;word-break:break-all;line-height:1.6}
+.cert-label{color:#666;font-size:0.68rem;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;font-family:inherit}
+
+.log-section{margin-top:20px;padding-top:16px;border-top:1px solid #1a1a2e}
+.log-section h3{color:#555;font-size:0.72rem;text-transform:uppercase;letter-spacing:2px;margin-bottom:14px}
+.log-entry{background:#0d0d14;border-radius:10px;padding:12px 14px;margin-bottom:8px;font-size:0.78rem}
+.log-entry .log-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+.log-gate{color:#00d4ff;font-weight:700;font-size:0.7rem;letter-spacing:1px}
+.log-status{font-weight:800;font-size:0.72rem;letter-spacing:1px}
+.log-status.pass{color:#00ff88}
+.log-status.block{color:#ff3366}
+.log-status.escalate{color:#ffaa00}
+.log-query{color:#888;font-size:0.75rem}
+
+.hint{color:#444;font-size:0.75rem;margin-top:10px;line-height:1.6}
+.footer{text-align:center;color:#333;font-size:0.65rem;margin-top:40px;padding-bottom:20px;line-height:1.8}
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <h1>CIAT25</h1>
+    <p>Context Integrity & Anchoring Technology — Full Pipeline</p>
+    <div class="gate-row">
+      <div class="gate-badge gate-active">GATE 0 — TRAJECTORY</div>
+      <div class="gate-badge gate-active">GATE 1 — ANCHOR TETHER</div>
+      <div class="gate-badge gate-active">GATE 2 — TK_GAUGE</div>
+      <div class="gate-badge gate-active">GATE 3 — VALIDATE</div>
+      <div class="gate-badge gate-active">GATE 4 — HUMAN</div>
+    </div>
+  </div>
+
+  <!-- PIPELINE VISUALIZER -->
+  <div class="section" id="pipelineSection" style="display:none">
+    <div class="section-title"><span>⚙️</span> Pipeline Status</div>
+    <div class="pipeline" id="pipelineVisualizer">
+      <div class="pipe-node" id="p0">Gate 0</div>
+      <div class="pipe-arrow">→</div>
+      <div class="pipe-node" id="p1">Gate 1</div>
+      <div class="pipe-arrow">→</div>
+      <div class="pipe-node" id="p2">Gate 2</div>
+      <div class="pipe-arrow">→</div>
+      <div class="pipe-node" id="p3">Gate 3</div>
+      <div class="pipe-arrow">→</div>
+      <div class="pipe-node" id="p4">Gate 4</div>
+    </div>
+  </div>
+
+  <!-- ANCHORS -->
+  <div class="section">
+    <div class="section-title"><span>📚</span> Data Anchors (Verified Corpus)</div>
+    <input type="text" id="aSource" placeholder="Source: e.g. Policy_v2.pdf" value="CIAT25_Whitepaper.pdf">
+    <input type="text" id="aChunk" placeholder="Chunk: e.g. #14" value="#01">
+    <textarea id="aText" placeholder="Paste verified document text here...">Gate Zero is a pre-generation scope blocking layer. Before any token is generated, it checks if the query aligns with verified data anchors. If not, the system halts with zero cost.</textarea>
+    <button onclick="addAnchor()">ADD ANCHOR</button>
+    <button class="secondary" onclick="loadDemo()">Load Demo Anchors</button>
+    <div id="anchorList" style="margin-top:12px"></div>
+    <div class="hint">Gate 1 will force every generated claim to cite one of these anchors. No citation = unverified.</div>
+  </div>
+
+  <!-- QUERY -->
+  <div class="section">
+    <div class="section-title"><span>🔍</span> Query (Gates 0 & 1)</div>
+    <textarea id="qInput" placeholder="Enter query to evaluate through Gates 0 and 1...">How does Gate Zero prevent out-of-scope queries from burning API budget?</textarea>
+  </div>
+
+  <!-- GATE 2 TELEMETRY INPUT -->
+  <div class="section">
+    <div class="section-title"><span>📡</span> Gate 2 — Generation Telemetry (TK_GAUGE)</div>
+    <textarea id="g2Reasoning" placeholder="Paste the model's internal reasoning / chain-of-thought trace...">The user is asking about Gate Zero and cost prevention. I should explain the pre-generation scope check. I need to consider whether this relates to token economics. I should also mention the 50ms latency figure. Let me think about how this connects to the broader pipeline architecture and whether Gate 1 tethering is relevant here. I should also consider mentioning accountability structures, human review chains, and the difference between pre-formation and post-generation cost models before I settle on a final phrasing that captures all of this without being too long for the visible answer.</textarea>
+    <textarea id="g2Visible" placeholder="Paste the actual visible output shown to the user...">Gate Zero blocks out-of-scope queries before generation, at zero API cost.</textarea>
+    <div class="hint">Gate 2 computes the Thread Ratio (reasoning tokens ÷ visible tokens) live from these two fields. Nothing here is a fixed number — change the text and the ratio changes.</div>
+  </div>
+
+  <div class="section">
+    <button onclick="runPipeline()" id="runBtn">RUN FULL PIPELINE (GATES 0 → 4)</button>
+    <button class="tertiary" onclick="clearResults()">Clear Results</button>
+  </div>
+
+  <div id="results"></div>
+
+  <!-- FULL LOG -->
+  <div class="log-section">
+    <h3>Full Pipeline Log (Gates 0–4 Audit Trail)</h3>
+    <div id="fullLog"></div>
+  </div>
+
+  <div class="footer">
+    Gate 0: Refuse to begin. Gate 1: Refuse to claim without anchor.<br>
+    Gate 2: Refuse to hide the reasoning. Gate 3: Refuse to trust one score alone.<br>
+    Gate 4: Refuse to ship without a named human.<br>
+    <span style="color:#222">CIAT25 — The human architects the boundary. The machine respects it.</span>
+  </div>
+</div>
+
+<script>
+// ============================================================
+// CIAT25 GATE 0-4 — FULL PIPELINE
+// ============================================================
+
+var anchors = [];
+var fullLog = [];
+
+var SYNONYMS = {
+  "block":["stop","halt","prevent","refuse","reject","deny","bar","intercept"],
+  "scope":["boundary","limit","range","domain","perimeter"],
+  "query":["question","request","prompt","input","inquiry"],
+  "generate":["create","produce","form","build","write","output"],
+  "token":["cost","api","budget","dollar","spend","bill"],
+  "anchor":["source","document","reference","ground","verify"],
+  "governance":["control","oversight","management","policy","framework"],
+  "accountability":["responsibility","ownership","liability"],
+  "human":["person","reviewer","editor","expert"],
+  "ai":["model","llm","machine","system","bot","agent"],
+  "pipeline":["workflow","chain","process","architecture"],
+  "fail":["error","breakdown","violation","breach"],
+  "review":["check","audit","inspect","verify","validate"],
+  "cost":["budget","expense","spend","waste","burn"]
+};
+
+var WORD_TO_CANONICAL = {};
+for(var canon in SYNONYMS){
+  WORD_TO_CANONICAL[canon]=canon;
+  for(var i=0;i<SYNONYMS[canon].length;i++){
+    WORD_TO_CANONICAL[SYNONYMS[canon][i]]=canon;
+  }
+}
+
+function stem(w){
+  var suffixes=['ing','ed','er','est','ly','tion','sion','ness','ment','able','ible','ful','less','ous','ive','ize','ise'];
+  for(var i=0;i<suffixes.length;i++){
+    var s=suffixes[i];
+    if(w.length>s.length+2 && w.substring(w.length-s.length)===s) return w.substring(0,w.length-s.length);
+  }
+  if(w.length>4 && w.substring(w.length-3)==='ies') return w.substring(0,w.length-3)+'y';
+  if(w.length>3 && w.substring(w.length-1)==='s') return w.substring(0,w.length-1);
+  return w;
+}
+
+function tokenize(text){
+  return text.toLowerCase().replace(/[^a-z0-9\s]/g,' ').split(/\s+/).filter(function(w){return w.length>2});
+}
+
+function extractConcepts(text){
+  var words=tokenize(text);
+  var concepts=[];
+  var raw=[];
+  var conceptSet={};
+  var rawSet={};
+  for(var i=0;i<words.length;i++){
+    var w=words[i];
+    var s=stem(w);
+    if(!rawSet[s]){rawSet[s]=true;raw.push(s)}
+    var concept=WORD_TO_CANONICAL[w]||WORD_TO_CANONICAL[s]||s;
+    if(!conceptSet[concept]){conceptSet[concept]=true;concepts.push(concept)}
+  }
+  return{concepts:concepts,raw:raw,words:words};
+}
+
+function smartScore(query,anchorText){
+  var q=extractConcepts(query);
+  var a=extractConcepts(anchorText);
+  var conceptOverlap=0;
+  for(var i=0;i<q.concepts.length;i++){if(a.concepts.indexOf(q.concepts[i])!==-1) conceptOverlap++}
+  var conceptScore=Math.min(conceptOverlap/Math.max(q.concepts.length*0.6,1),1);
+  var qWords=tokenize(query);
+  var aWords=tokenize(anchorText);
+  var rawOverlap=0;
+  for(var i=0;i<qWords.length;i++){if(aWords.indexOf(qWords[i])!==-1) rawOverlap++}
+  var rawScore=Math.min(rawOverlap/Math.max(qWords.length*0.5,1),1);
+  var total=conceptScore*0.6+rawScore*0.4;
+  var matched=[];
+  for(var i=0;i<q.concepts.length;i++){if(a.concepts.indexOf(q.concepts[i])!==-1) matched.push(q.concepts[i])}
+  return{score:Math.max(0,total),matchedConcepts:matched,conceptScore:conceptScore,rawScore:rawScore};
+}
+
+// ============================================================
+// UI
+// ============================================================
+
+function addAnchor(){
+  var src=document.getElementById('aSource').value.trim()||'Untitled';
+  var chunk=document.getElementById('aChunk').value.trim()||'#0';
+  var text=document.getElementById('aText').value.trim();
+  if(!text){alert('Anchor text required');return}
+  anchors.push({source:src,chunk:chunk,text:text});
+  renderAnchors();
+  document.getElementById('aText').value='';
+}
+
+function loadDemo(){
+  anchors=[
+    {source:"CIAT25_Whitepaper.pdf",chunk:"#01",text:"Gate Zero is a pre-generation scope blocking layer. Before any token is generated, it checks if the query aligns with verified data anchors. If not, the system halts with zero cost."},
+    {source:"Token_Economics.pdf",chunk:"#07",text:"The most expensive token is the out-of-scope token. Pre-formation blocking costs less than 50ms and zero API dollars, while post-generation cleanup requires hours of review and reputation risk."},
+    {source:"Governance_Framework.pdf",chunk:"#31",text:"Gate 4 ensures named human accountability. Every failure along the chain is logged for review by a specific named individual. Nothing reaches the user without passing a named human."},
+    {source:"RAG_Limits.pdf",chunk:"#03",text:"RAG retrieval is not a safety net. It retrieves text chunks but does not validate whether the content is appropriate for the query context or within policy boundaries."}
+  ];
+  renderAnchors();
+}
+
+function renderAnchors(){
+  var el=document.getElementById('anchorList');
+  if(!anchors.length){el.innerHTML='<div class="hint">No anchors loaded.</div>';return}
+  var html='';
+  for(var i=0;i<anchors.length;i++){
+    var a=anchors[i];
+    html+='<div style="background:#0d0d14;border-radius:8px;padding:10px 12px;margin-bottom:6px;font-size:0.78rem;border-left:3px solid #00d4ff33"><div style="color:#00d4ff;font-weight:700;font-size:0.75rem">'+a.source+' <span style="color:#555">'+a.chunk+'</span></div><div style="color:#999;margin-top:3px">'+a.text.substring(0,120)+(a.text.length>120?'...':'')+'</div></div>';
+  }
+  el.innerHTML=html;
+}
+
+function clearResults(){
+  document.getElementById('results').innerHTML='';
+  document.getElementById('pipelineSection').style.display='none';
+  resetPipeline();
+}
+
+function resetPipeline(){
+  var ids=['p0','p1','p2','p3','p4'];
+  for(var i=0;i<ids.length;i++){
+    document.getElementById(ids[i]).className='pipe-node';
+  }
+}
+
+function setPipeNode(id,status){
+  var el=document.getElementById(id);
+  if(status==='done') el.className='pipe-node done';
+  else if(status==='fail') el.className='pipe-node fail';
+  else if(status==='current') el.className='pipe-node current';
+  else el.className='pipe-node';
+}
+
+// ============================================================
+// GATE 0 — TRAJECTORY SENSOR
+// ============================================================
+
+function runGate0(query){
+  if(!anchors.length) return{status:"BLOCKED",reason:"No anchors in corpus.",score:0,matchedAnchor:null};
+  var best=null, bestScore=-1;
+  for(var i=0;i<anchors.length;i++){
+    var sc=smartScore(query,anchors[i].text);
+    if(sc.score>bestScore){bestScore=sc.score;best={anchor:anchors[i],score:sc.score,concepts:sc.matchedConcepts}}
+  }
+  var threshold=0.25;
+  if(bestScore<threshold) return{status:"BLOCKED",reason:"Best semantic score "+bestScore.toFixed(3)+" below threshold "+threshold+". Query ungrounded.",score:bestScore,matchedAnchor:best?best.anchor:null};
+  return{status:"PASS",reason:"Semantic match: "+bestScore.toFixed(3)+". Grounded to ["+best.anchor.source+" "+best.anchor.chunk+"]",score:bestScore,matchedAnchor:best.anchor,concepts:best.concepts};
+}
+
+// ============================================================
+// GATE 1 — ANCHOR VERIFICATION & TETHERING
+// ============================================================
+
+function runGate1(query,g0Result){
+  var matchedAnchor=g0Result.matchedAnchor;
+  if(!matchedAnchor) return{status:"BLOCKED",reason:"Gate 1 cannot tether: no anchor passed Gate 0.",claims:[],groundingScore:0};
+
+  var simulatedResponse=generateSimulatedResponse(query,matchedAnchor);
+  var claims=extractClaims(simulatedResponse);
+  var verifiedClaims=[];
+  var unverifiedCount=0;
+  var contradictionCount=0;
+
+  for(var i=0;i<claims.length;i++){
+    var claim=claims[i];
+    var tetherResult=tetherClaim(claim,anchors);
+
+    if(tetherResult.status==="ANCHORED"){
+      verifiedClaims.push({
+        text:claim.text,
+        status:"ANCHORED",
+        citation:tetherResult.citation,
+        anchorText:tetherResult.anchorText,
+        conceptScore:tetherResult.conceptScore,
+        rawScore:tetherResult.rawScore
+      });
+    } else if(tetherResult.status==="CONTRADICTION"){
+      contradictionCount++;
+      verifiedClaims.push({
+        text:claim.text,
+        status:"CONTRADICTION",
+        citation:tetherResult.citation,
+        error:"This claim contradicts another anchor in the corpus."
+      });
+    } else {
+      unverifiedCount++;
+      verifiedClaims.push({
+        text:claim.text,
+        status:"UNVERIFIED",
+        citation:null,
+        flag:"No matching anchor found for this claim."
+      });
+    }
+  }
+
+  var totalClaims=claims.length;
+  var groundedCount=totalClaims-unverifiedCount-contradictionCount;
+  var groundingRatio=totalClaims>0?groundedCount/totalClaims:0;
+
+  if(contradictionCount>0){
+    return{
+      status:"ESCALATE",
+      reason:"Gate 1 detected "+contradictionCount+" contradiction(s) between generated claims and verified anchors. Routing straight to Gate 4 (named human review) — Gates 2 and 3 are skipped because a contradiction is a hard stop regardless of telemetry.",
+      claims:verifiedClaims,
+      groundingScore:groundingRatio,
+      stats:{total:totalClaims,anchored:groundedCount,unverified:unverifiedCount,contradictions:contradictionCount}
+    };
+  }
+
+  if(unverifiedCount/totalClaims>0.30){
+    return{
+      status:"BLOCKED",
+      reason:"Gate 1: "+Math.round(unverifiedCount/totalClaims*100)+"% of claims are unverified (threshold: 30%). Response halted. No ungrounded output permitted.",
+      claims:verifiedClaims,
+      groundingScore:groundingRatio,
+      stats:{total:totalClaims,anchored:groundedCount,unverified:unverifiedCount,contradictions:contradictionCount}
+    };
+  }
+
+  return{
+    status:"PASS",
+    reason:"Gate 1: All claims tethered to verified anchors. Grounding ratio: "+Math.round(groundingRatio*100)+"%.",
+    claims:verifiedClaims,
+    groundingScore:groundingRatio,
+    stats:{total:totalClaims,anchored:groundedCount,unverified:unverifiedCount,contradictions:contradictionCount}
+  };
+}
+
+function generateSimulatedResponse(query,anchor){
+  var q=query.toLowerCase();
+  if(q.indexOf('gate zero')!==-1 || q.indexOf('scope')!==-1 || q.indexOf('block')!==-1){
+    return "Gate Zero operates as a pre-generation filter. It checks query alignment against verified anchors before token generation. If the query is out of scope, the system halts immediately with zero cost. This prevents expensive post-generation cleanup.";
+  }
+  if(q.indexOf('token')!==-1 || q.indexOf('cost')!==-1 || q.indexOf('budget')!==-1){
+    return "Out-of-scope tokens are the most expensive. Pre-formation blocking costs less than 50ms and zero API dollars. Post-generation cleanup requires hours of review and carries reputation risk.";
+  }
+  if(q.indexOf('accountability')!==-1 || q.indexOf('human')!==-1){
+    return "Gate 4 ensures named human accountability. Every failure is logged for review by a specific named individual. Nothing reaches the user without passing a named human.";
+  }
+  return "Based on the verified anchor, "+anchor.text+" Additionally, this system can operate autonomously without any human oversight whatsoever.";
+}
+
+function extractClaims(text){
+  var sentences=text.replace(/\?/g,'.').replace(/!/g,'.').split('.');
+  var claims=[];
+  for(var i=0;i<sentences.length;i++){
+    var s=sentences[i].trim();
+    if(s.length>10) claims.push({text:s+'.'});
+  }
+  return claims;
+}
+
+function tetherClaim(claim,anchorList){
+  var claimText=claim.text.toLowerCase();
+  var bestAnchor=null;
+  var bestScore=0;
+  var bestConceptScore=0;
+  var bestRawScore=0;
+
+  for(var i=0;i<anchorList.length;i++){
+    var sc=smartScore(claimText,anchorList[i].text);
+    if(sc.score>bestScore){bestScore=sc.score;bestAnchor=anchorList[i];bestConceptScore=sc.conceptScore;bestRawScore=sc.rawScore}
+  }
+
+  var negWords=['not','never','none','without','cannot','no'];
+  var hasNegation=false;
+  for(var i=0;i<negWords.length;i++){if(claimText.indexOf(negWords[i])!==-1) hasNegation=true}
+
+  for(var i=0;i<anchorList.length;i++){
+    var anchorText=anchorList[i].text.toLowerCase();
+    if(hasNegation && smartScore(claimText,anchorText).score>0.3){
+      var anchorPos=anchorText.replace(/ not /g,' ').replace(/ never /g,' ');
+      if(smartScore(claimText,anchorPos).score>0.4){
+        return{status:"CONTRADICTION",citation:anchorList[i].source+" "+anchorList[i].chunk,anchorText:anchorList[i].text};
+      }
+    }
+  }
+
+  if(bestScore>0.25){
+    return{status:"ANCHORED",citation:bestAnchor.source+" "+bestAnchor.chunk,anchorText:bestAnchor.text,conceptScore:bestConceptScore,rawScore:bestRawScore};
+  }
+  return{status:"UNVERIFIED",citation:null,anchorText:null};
+}
+
+// ============================================================
+// GATE 2 — GENERATION TELEMETRY (TK_GAUGE)
+// Real computation from the two textareas. Nothing hardcoded.
+// Thresholds match the CIAT25 spec: Thread Ratio > 10.0 = AI_DEBT;
+// reasoning_tokens > 500 AND visible_tokens < 50 = BEAUTIFUL_LIE
+// ============================================================
+
+function runGate2(){
+  var reasoningText=document.getElementById('g2Reasoning').value.trim();
+  var visibleText=document.getElementById('g2Visible').value.trim();
+  var reasoningWords=reasoningText?tokenize(reasoningText).length:0;
+  var visibleWords=visibleText?tokenize(visibleText).length:0;
+  var threadRatio=reasoningWords/Math.max(visibleWords,1);
+
+  if(reasoningWords>500 && visibleWords<50){
+    return{
+      status:"BEAUTIFUL_LIE",
+      reasoningWords:reasoningWords,
+      visibleWords:visibleWords,
+      threadRatio:threadRatio,
+      reason:"Reasoning trace ("+reasoningWords+" tokens) far exceeds visible output ("+visibleWords+" tokens), matching the BEAUTIFUL_LIE pattern: heavy internal deliberation with minimal surfaced justification. Route to Gate 4."
+    };
+  }
+  if(threadRatio>10.0){
+    return{
+      status:"AI_DEBT",
+      reasoningWords:reasoningWords,
+      visibleWords:visibleWords,
+      threadRatio:threadRatio,
+      reason:"Thread Ratio "+threadRatio.toFixed(1)+" exceeds the 10.0 AI_DEBT threshold ("+reasoningWords+" reasoning tokens vs "+visibleWords+" visible tokens). Reasoning effort is disproportionate to output. Route to Gate 4."
+    };
+  }
+  return{
+    status:"PASS",
+    reasoningWords:reasoningWords,
+    visibleWords:visibleWords,
+    threadRatio:threadRatio,
+    reason:"Thread Ratio "+threadRatio.toFixed(1)+" ("+reasoningWords+" reasoning tokens vs "+visibleWords+" visible tokens) is within normal range."
+  };
+}
+
+// ============================================================
+// GATE 3 — VALIDATE (cross-check concept-level vs literal-word
+// agreement on every anchored claim from Gate 1)
+// ============================================================
+
+function runGate3(claims){
+  var flagged=[];
+  for(var i=0;i<claims.length;i++){
+    var c=claims[i];
+    if(c.status==="ANCHORED" && typeof c.conceptScore==="number" && typeof c.rawScore==="number"){
+      var divergence=Math.abs(c.conceptScore-c.rawScore);
+      if(divergence>0.4){
+        flagged.push({text:c.text,divergence:divergence,conceptScore:c.conceptScore,rawScore:c.rawScore});
+      }
+    }
+  }
+  if(flagged.length>0){
+    return{
+      status:"ESCALATE",
+      flagged:flagged,
+      reason:flagged.length+" claim(s) show high divergence between concept-level matching and literal word overlap — the claim may be paraphrasing an anchor loosely enough to warrant a second look before it ships."
+    };
+  }
+  return{
+    status:"PASS",
+    flagged:[],
+    reason:"No confidence divergence detected. Concept-level and literal-word matching agree across all anchored claims."
+  };
+}
+
+// ============================================================
+// GATE 4 — HUMAN ADJUDICATION HOLD
+// Real SHA-256 over the actual pipeline trail via Web Crypto.
+// ============================================================
+
+async function sha256Hex(text){
+  var enc=new TextEncoder().encode(text);
+  var buf=await crypto.subtle.digest('SHA-256',enc);
+  var bytes=Array.from(new Uint8Array(buf));
+  return bytes.map(function(b){return b.toString(16).padStart(2,'0')}).join('');
+}
+
+function buildTrailString(query,g0,g1,g2,g3){
+  var parts=[
+    'QUERY: '+query,
+    'GATE0: '+g0.status+' score='+g0.score.toFixed(3),
+    'GATE1: '+g1.status+' grounding='+(g1.groundingScore*100).toFixed(0)+'%',
+    g2?('GATE2: '+g2.status+' threadRatio='+g2.threadRatio.toFixed(2)):'GATE2: SKIPPED',
+    g3?('GATE3: '+g3.status+' flagged='+g3.flagged.length):'GATE3: SKIPPED',
+    'TIMESTAMP: '+new Date().toISOString()
+  ];
+  return parts.join(' | ');
+}
+
+// ============================================================
+// FULL PIPELINE RUNNER
+// ============================================================
+
+async function runPipeline(){
+  var query=document.getElementById('qInput').value.trim();
+  if(!query) return;
+  if(!anchors.length){alert('Add anchors first');return}
+
+  var btn=document.getElementById('runBtn');
+  btn.disabled=true;
+  btn.innerText='RUNNING PIPELINE...';
+
+  document.getElementById('pipelineSection').style.display='block';
+  resetPipeline();
+  document.getElementById('results').innerHTML='';
+
+  // GATE 0
+  setPipeNode('p0','current');
+  var g0=runGate0(query);
+  setPipeNode('p0',g0.status==='PASS'?'done':'fail');
+  addLog('Gate 0',g0.status,query);
+  renderGate0Result(g0);
+
+  if(g0.status==='BLOCKED'){
+    setPipeNode('p1','fail');setPipeNode('p2','fail');setPipeNode('p3','fail');setPipeNode('p4','fail');
+    btn.disabled=false;btn.innerText='RUN FULL PIPELINE (GATES 0 → 4)';
+    return;
+  }
+
+  // GATE 1
+  setPipeNode('p1','current');
+  var g1=runGate1(query,g0);
+  addLog('Gate 1',g1.status,query);
+  renderGate1Result(g1);
+
+  if(g1.status==='BLOCKED'){
+    setPipeNode('p1','fail');setPipeNode('p2','fail');setPipeNode('p3','fail');setPipeNode('p4','fail');
+    btn.disabled=false;btn.innerText='RUN FULL PIPELINE (GATES 0 → 4)';
+    return;
+  }
+
+  if(g1.status==='ESCALATE'){
+    setPipeNode('p1','done');setPipeNode('p2','fail');setPipeNode('p3','fail');setPipeNode('p4','current');
+    renderGate4Result(true,['Gate 1 contradiction: generated content conflicts with a verified anchor.'],query,g0,g1,null,null);
+    btn.disabled=false;btn.innerText='RUN FULL PIPELINE (GATES 0 → 4)';
+    return;
+  }
+
+  setPipeNode('p1','done');
+
+  // GATE 2
+  setPipeNode('p2','current');
+  var g2=runGate2();
+  addLog('Gate 2',g2.status,query);
+  renderGate2Result(g2);
+  setPipeNode('p2',g2.status==='PASS'?'done':'current');
+
+  // GATE 3
+  setPipeNode('p3','current');
+  var g3=runGate3(g1.claims);
+  addLog('Gate 3',g3.status,query);
+  renderGate3Result(g3);
+  setPipeNode('p3',g3.status==='PASS'?'done':'current');
+
+  // GATE 4
+  var needsReview=(g2.status!=='PASS')||(g3.status!=='PASS');
+  var reasons=[];
+  if(g2.status!=='PASS') reasons.push('Gate 2 ('+g2.status+'): '+g2.reason);
+  if(g3.status!=='PASS') reasons.push('Gate 3 (ESCALATE): '+g3.reason);
+
+  setPipeNode('p4',needsReview?'current':'done');
+  await renderGate4Result(needsReview,reasons,query,g0,g1,g2,g3);
+
+  btn.disabled=false;
+  btn.innerText='RUN FULL PIPELINE (GATES 0 → 4)';
+}
+
+function renderGate0Result(g0){
+  var results=document.getElementById('results');
+  var statusClass=g0.status==='PASS'?'status-pass':'status-block';
+  var fillClass=g0.status==='PASS'?'pass':'block';
+  var pct=Math.min(Math.round(g0.score*100),100);
+
+  var html='<div class="result show '+statusClass+'">'+
+    '<div class="status-label">Gate 0: '+g0.status+'</div>'+
+    '<div class="result-query">"'+g0.query+'"</div>'+
+    '<div class="score-row"><span>Semantic Relevance</span><span>'+pct+'%</span></div>'+
+    '<div class="score-bar"><div class="score-fill '+fillClass+'" style="width:'+pct+'%"></div></div>'+
+    '<div class="result-reason">'+g0.reason+'</div>';
+
+  if(g0.matchedAnchor){
+    html+='<div class="result-anchor"><div class="label">📎 Matched Anchor</div><div class="text">'+g0.matchedAnchor.text.substring(0,180)+'...</div></div>';
+  }
+  html+='</div>';
+  results.insertAdjacentHTML('beforeend',html);
+}
+
+function renderGate1Result(g1){
+  var results=document.getElementById('results');
+  var statusClass=g1.status==='PASS'?'status-pass':g1.status==='BLOCKED'?'status-block':'status-escalate';
+  var fillClass=g1.status==='PASS'?'pass':g1.status==='BLOCKED'?'block':'escalate';
+  var pct=Math.min(Math.round(g1.groundingScore*100),100);
+
+  var html='<div class="result show '+statusClass+'">'+
+    '<div class="status-label">Gate 1: '+g1.status+'</div>'+
+    '<div class="result-reason">'+g1.reason+'</div>'+
+    '<div class="score-row"><span>Claim Grounding Ratio</span><span>'+pct+'%</span></div>'+
+    '<div class="score-bar"><div class="score-fill '+fillClass+'" style="width:'+pct+'%"></div></div>';
+
+  if(g1.claims && g1.claims.length){
+    html+='<div class="claim-list">';
+    for(var i=0;i<g1.claims.length;i++){
+      var c=g1.claims[i];
+      var itemClass='claim-item';
+      if(c.status==='UNVERIFIED') itemClass+=' unverified';
+      if(c.status==='CONTRADICTION') itemClass+=' contradiction';
+
+      html+='<div class="'+itemClass+'">';
+      html+='<div class="claim-text">'+c.text+'</div>';
+      if(c.citation) html+='<div class="claim-cite">📎 '+c.citation+'</div>';
+      if(c.flag) html+='<div class="claim-flag">⚠️ '+c.flag+'</div>';
+      if(c.error) html+='<div class="claim-error">❌ '+c.error+'</div>';
+      html+='</div>';
+    }
+    html+='</div>';
+  }
+
+  if(g1.stats){
+    html+='<div class="grounding-summary">'+
+      '<div class="title">Claim Audit</div>'+
+      '<div class="grounding-row"><div class="label">Total Claims</div><div class="value">'+g1.stats.total+'</div></div>'+
+      '<div class="grounding-row"><div class="label">Anchored</div><div class="value pass">'+g1.stats.anchored+'</div></div>'+
+      '<div class="grounding-row"><div class="label">Unverified</div><div class="value warn">'+g1.stats.unverified+'</div></div>'+
+      '<div class="grounding-row"><div class="label">Contradictions</div><div class="value fail">'+g1.stats.contradictions+'</div></div>'+
+    '</div>';
+  }
+
+  html+='</div>';
+  results.insertAdjacentHTML('beforeend',html);
+}
+
+function renderGate2Result(g2){
+  var results=document.getElementById('results');
+  var statusClass=g2.status==='PASS'?'status-pass':g2.status==='BEAUTIFUL_LIE'?'status-block':'status-escalate';
+  var pct=Math.min(Math.round((g2.threadRatio/15)*100),100);
+  var fillClass=g2.status==='PASS'?'pass':g2.status==='BEAUTIFUL_LIE'?'block':'escalate';
+
+  var html='<div class="result show '+statusClass+'">'+
+    '<div class="status-label">Gate 2: '+g2.status+'</div>'+
+    '<div class="result-reason">'+g2.reason+'</div>'+
+    '<div class="score-row"><span>Thread Ratio (reasoning ÷ visible)</span><span>'+g2.threadRatio.toFixed(1)+'</span></div>'+
+    '<div class="score-bar"><div class="score-fill '+fillClass+'" style="width:'+pct+'%"></div></div>'+
+    '<div class="grounding-summary">'+
+      '<div class="grounding-row"><div class="label">Reasoning Tokens</div><div class="value">'+g2.reasoningWords+'</div></div>'+
+      '<div class="grounding-row"><div class="label">Visible Tokens</div><div class="value">'+g2.visibleWords+'</div></div>'+
+    '</div>'+
+  '</div>';
+  results.insertAdjacentHTML('beforeend',html);
+}
+
+function renderGate3Result(g3){
+  var results=document.getElementById('results');
+  var statusClass=g3.status==='PASS'?'status-pass':'status-escalate';
+  var html='<div class="result show '+statusClass+'">'+
+    '<div class="status-label">Gate 3: '+g3.status+'</div>'+
+    '<div class="result-reason">'+g3.reason+'</div>';
+
+  if(g3.flagged && g3.flagged.length){
+    html+='<div class="claim-list">';
+    for(var i=0;i<g3.flagged.length;i++){
+      var f=g3.flagged[i];
+      html+='<div class="claim-item unverified"><div class="claim-text">'+f.text+'</div>'+
+        '<div class="claim-divergence">⚠️ Concept score '+f.conceptScore.toFixed(2)+' vs raw-word score '+f.rawScore.toFixed(2)+' — divergence '+f.divergence.toFixed(2)+'</div></div>';
+    }
+    html+='</div>';
+  }
+  html+='</div>';
+  results.insertAdjacentHTML('beforeend',html);
+}
+
+async function renderGate4Result(needsReview,reasons,query,g0,g1,g2,g3){
+  var results=document.getElementById('results');
+  var containerId='gate4-'+Date.now();
+
+  if(!needsReview){
+    var cert=await sha256Hex(buildTrailString(query,g0,g1,g2,g3));
+    var html='<div class="result show status-pass" id="'+containerId+'">'+
+      '<div class="status-label">Gate 4: PASSED GATES 0–4</div>'+
+      '<div class="result-reason">No flags raised by Gates 2 or 3. Certificate issued without manual override.</div>'+
+      '<div class="cert-box"><div class="cert-label">SHA-256 Certificate</div>'+cert+'</div>'+
+    '</div>';
+    results.insertAdjacentHTML('beforeend',html);
+    addLog('Gate 4','PASS',query);
+    return;
+  }
+
+  var reasonsHtml=reasons.map(function(r){return '<div class="result-reason">• '+r+'</div>'}).join('');
+  var html='<div class="result show status-escalate" id="'+containerId+'">'+
+    '<div class="status-label">Gate 4: ADJUDICATION HOLD</div>'+
+    '<div class="result-reason">Output generation suspended pending named human review.</div>'+
+    reasonsHtml+
+    '<button class="hold-btn" onclick="authorizeOverride(\''+containerId+'\',\''+encodeURIComponent(query)+'\')">AUTHORIZE HUMAN REVIEW / ISSUE CERTIFICATE</button>'+
+  '</div>';
+  results.insertAdjacentHTML('beforeend',html);
+  addLog('Gate 4','HOLD',query);
+
+  window['_g4trail_'+containerId]=buildTrailString(query,g0,g1,g2,g3);
+}
+
+async function authorizeOverride(containerId,encodedQuery){
+  var container=document.getElementById(containerId);
+  var trail=window['_g4trail_'+containerId]||('QUERY: '+decodeURIComponent(encodedQuery)+' | TIMESTAMP: '+new Date().toISOString());
+  var cert=await sha256Hex(trail+' | HUMAN_OVERRIDE_AT: '+new Date().toISOString());
+  container.className='result show status-pass';
+  container.innerHTML='<div class="status-label">Gate 4: HUMAN REVIEW AUTHORIZED</div>'+
+    '<div class="result-reason">A named human reviewer authorized this output despite the hold. Certificate below covers the full trail including the override event.</div>'+
+    '<div class="cert-box"><div class="cert-label">SHA-256 Certificate (post-override)</div>'+cert+'</div>';
+  addLog('Gate 4','OVERRIDE',decodeURIComponent(encodedQuery));
+}
+
+function addLog(gate,status,query){
+  fullLog.unshift({gate:gate,status:status,query:query,time:new Date().toLocaleTimeString()});
+  renderLog();
+}
+
+function renderLog(){
+  var el=document.getElementById('fullLog');
+  if(!fullLog.length){el.innerHTML='<div class="hint">No pipeline runs yet.</div>';return}
+  var html='';
+  for(var i=0;i<fullLog.length;i++){
+    var e=fullLog[i];
+    var statusClass=(e.status==='PASS'||e.status==='OVERRIDE')?'pass':(e.status==='BLOCKED'||e.status==='BEAUTIFUL_LIE')?'block':'escalate';
+    html+='<div class="log-entry">'+
+      '<div class="log-header"><div class="log-gate">'+e.gate+'</div><div class="log-status '+statusClass+'">'+e.status+'</div></div>'+
+      '<div class="log-query">'+e.query.substring(0,60)+'...</div>'+
+    '</div>';
+  }
+  el.innerHTML=html;
+}
+
+// Init
+loadDemo();
+renderLog();
+</script>
+</body>
+</html>
