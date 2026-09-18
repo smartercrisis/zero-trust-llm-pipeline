@@ -11,4 +11,4 @@ A zero-dependency, client-side governance engine designed for deterministic cont
 
 ## Documentation & Live Engine
 - 📄 [Download CIAT25 User Manual (PDF)](./CIAT_demo_manual.pdf)
-- 🚀 [Launch Live Interactive Engine](https://<your-username>.github.io/zero-trust-llm-pipeline/)
+- 🚀 [Launch Live Interactive Engine](https://smartercrisis.github.io/zero-trust-llm-pipeline/)
